@@ -1,5 +1,5 @@
 from django.shortcuts import render, get_object_or_404
-from django.http import HttpResponse, Http404
+from django.http import HttpResponse, Http404, HttpResponseBadRequest
 from django.core.files.storage import FileSystemStorage
 from django.views.decorators.csrf import csrf_exempt
 import json
@@ -13,15 +13,11 @@ from .tasks import find_color_edges
 
 
 def index(request):
-    return render(request, 'core/basic.html')
-
-
-def upload(request):
-    # Increment upload counter and save to database
     cnt = SiteCounter.objects.get(id=0)
     cnt.upload_cnt += 1
     cnt.save()
-    return render(request, 'core/upload.html')
+    return render(request, 'core/react.html')
+
 
 @csrf_exempt 
 def process(request):
@@ -56,7 +52,6 @@ def process(request):
             colors.append((inp_clrs[i]['r'], inp_clrs[i]['g'],
                            inp_clrs[i]['b']))
         stencil_info['colors'] = colors
-        print(colors)
         stencil_info['layers'] = len(colors)
 
         # Pack stencil information into json format
@@ -75,54 +70,46 @@ def process(request):
         info_json = json.dumps(info)
 
         return HttpResponse(info_json)
-    return HttpResponse('Wrong parameter')
+    return HttpResponseBadRequest('Not a POST request')
 
 
 @csrf_exempt 
-def result(request, stencil_id):
+def ping(request):
+    stencil_id = int(request.GET.get('stencil_id', ''))
+    task_id = request.GET.get('task_id', '')
+    if stencil_id == '' or task_id == '':
+        return HttpResponseBadRequest('Stencil id or task id is not provided')
+
+    try:
+        sten = Stencil.objects.get(stencil_id=stencil_id)
+    except Stencil.DoesNotExist:
+        return HttpResponseBadRequest("Stencil does not exist")
+
+    state = AsyncResult(task_id)
+    if state.ready():
+        sten.ready = 1
+        sten.save()
+        return HttpResponse(1)
+    else:
+        return HttpResponse(0)
+
+def result(request):
+    stencil_id = int(request.GET.get('stencil_id', ''))
+    try:
+        sten = Stencil.objects.get(stencil_id=stencil_id)
+    except Stencil.DoesNotExist:
+        raise Http404("Stencil does not exist")
+
     context = {}
-    if request.method == 'POST':
-        print(stencil_id)
-        try:
-            sten = Stencil.objects.get(stencil_id=stencil_id)
-        except Stencil.DoesNotExist:
-            raise Http404("Stencil does not exist")
-
-        task_id = json.loads(request.body)['task_id']
-        print(task_id)
-        state = AsyncResult(task_id)
-        print(state.ready())
-        if state.ready():
-            sten.ready = 1
-            sten.save()
-            media_url = 'media/' + str(sten.stencil_id) + '/'
-            context['orig_url'] = media_url + sten.img_name
-            context['stencil_url'] = media_url + sten.stencil_name
-            edges_url = []
-            for i in range(sten.layers):
-                edges_url.append(media_url + str(i) + '.jpg')
-            context['edges_url'] = edges_url
-            return HttpResponse(1)
-        else:
-            return HttpResponse(0)
-
-    if request.method == 'GET':
-        try:
-            sten = Stencil.objects.get(stencil_id=stencil_id)
-        except Stencil.DoesNotExist:
-            raise Http404("Stencil does not exist")
-
-        print(sten.ready)
-        media_url = 'media/' + str(sten.stencil_id) + '/'
-        context['orig_url'] = media_url + sten.img_name
-        context['stencil_url'] = media_url + sten.stencil_name
-        edges_url = []
-        if sten.ready == 1:
-            for i in range(sten.layers):
-                edges_url.append(media_url + str(i) + '.jpg')
-            context['edges_url'] = edges_url
-            print(context)
-            return render(request, 'core/result.html', context)
-        else:
-            return Http404("Stencil does not exist")
-    return HttpResponse('Wrong parameter')
+    media_url = 'media/' + str(sten.stencil_id) + '/'
+    context['original_url'] = media_url + sten.img_name
+    context['stencil_url'] = media_url + sten.stencil_name
+    edges_url = []
+    if sten.ready == 1:
+        for i in range(sten.layers):
+            edges_url.append(media_url + str(i) + '.jpg')
+        context['edges_url'] = edges_url
+        print(context)
+        return render(request, 'core/result.html', context)
+    else:
+        return HttpResponseBadRequest("Stencil does not exist")

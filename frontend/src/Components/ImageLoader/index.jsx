@@ -27,14 +27,6 @@ class ImageLoader extends Component {
     this.props.setImage(event.target.files[0]);
   };
 
-  handleUpload = () => {
-    const formData = new FormData();
-    formData.append('image', this.state.image);
-    this.props.uploadImage(formData).then(() => {
-      this.props.uploadColors();
-    });
-  };
-
   render() {
     return (
       <div>
