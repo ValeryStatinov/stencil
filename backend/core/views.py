@@ -16,7 +16,7 @@ def index(request):
     cnt = SiteCounter.objects.get(id=0)
     cnt.upload_cnt += 1
     cnt.save()
-    return render(request, 'core/react.html')
+    return render(request, 'index.html')
 
 
 @csrf_exempt 
