@@ -75,11 +75,13 @@ def process(request):
 
 @csrf_exempt 
 def ping(request):
-    stencil_id = int(request.GET.get('stencil_id', ''))
-    task_id = request.GET.get('task_id', '')
-    if stencil_id == '' or task_id == '':
+    request_data = json.loads(request.body)
+    stencil_id = request_data.get('stencil_id', -1)
+    task_id = request_data.get('task_id', -1)
+    if stencil_id == -1 or task_id == -1:
         return HttpResponseBadRequest('Stencil id or task id is not provided')
-
+    else:
+        stencil_id = int(stencil_id)
     try:
         sten = Stencil.objects.get(stencil_id=stencil_id)
     except Stencil.DoesNotExist:
@@ -113,3 +115,7 @@ def result(request):
         return render(request, 'core/result.html', context)
     else:
         return HttpResponseBadRequest("Stencil does not exist")
+
+def my_image(request):
+    image_data = open("media/77/ad.png", "rb").read()
+    return HttpResponse(image_data, content_type="image/png")

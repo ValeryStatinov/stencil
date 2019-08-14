@@ -6,6 +6,7 @@ from django.conf.urls.static import static
 from . import views
 
 urlpatterns = [
+    path('image/', views.my_image, name='image'),
     re_path(r'^(?!api).*', views.index, name='index'),
     re_path(r'api/process/$', views.process, name='process'),
     re_path(r'^api/ping/$', views.ping, name='ping'),
